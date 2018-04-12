@@ -8,7 +8,7 @@ __all__ = ['dmiparse']
 import json
 from itertools import takewhile
 
-MODE_SECTION_START, MODE_SECTION_NAME, MODE_READ_KV, MODE_LIST_PROPERTY, MODE_SECTION_DONE = range(5)
+STATE_SECTION_NAME, STATE_READ_KV, STATE_LIST_PROPERTY = range(3)
 
 class Section:
     def __init__(self):
@@ -42,17 +42,16 @@ def dmiparse(s):
     """
 
     lines = s.splitlines()
-    mode = None
+    state = None
     sects = {} # title => section 
     getindentlevel = lambda l:  len(list(takewhile(lambda c: c.isspace(), l)))
     s = None
     p = None
     for i, l in enumerate(lines):
         if l.startswith("Handle"):
-            mode = MODE_SECTION_START
             s = Section()
             s.handleline = l
-            mode = MODE_SECTION_NAME
+            state = STATE_SECTION_NAME
             continue 
 
         if l == "": # can be just new line before reading any sections. 
@@ -60,20 +59,20 @@ def dmiparse(s):
                 sects[s.title] = s
             continue
 
-        if mode == MODE_SECTION_NAME:
+        if state == STATE_SECTION_NAME:
             s.title = l
-            mode = MODE_READ_KV
-        elif mode == MODE_READ_KV:
+            state = STATE_READ_KV
+        elif state == STATE_READ_KV:
             k, v = [x.strip() for x in l.split(":")]
             p = Property(v)
             if i < len(lines) and getindentlevel(l) < getindentlevel(lines[i+1]):
-                mode = MODE_LIST_PROPERTY
+                state = STATE_LIST_PROPERTY
             else:
                 s.props[k] = p
-        elif mode == MODE_LIST_PROPERTY:
+        elif state == STATE_LIST_PROPERTY:
             p.add_item(l.strip())
             if getindentlevel(l) > getindentlevel(lines[i+1]):
-                mode = MODE_READ_KV
+                state = STATE_READ_KV
                 s.props[k] = p
 
     return sects
